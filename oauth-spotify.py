@@ -4,8 +4,18 @@ import os
 import uuid
 import time
 import functools
+import logging
+import json
 from collections import defaultdict
 import pathlib
+import sys
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
 
 app = Flask(__name__)
 
@@ -18,8 +28,12 @@ PROXY_SECRET = os.environ.get('PROXY_SECRET', '')  # Secret for clients to authe
 ENABLE_DEMO = os.environ.get('ENABLE_DEMO', '').lower() in ('true', 'yes', '1')  # Enable demo page
 BASE_PATH = os.environ.get('BASE_PATH', '')  # Base path when running behind reverse proxy (e.g., '/spotify')
 
-# In-memory storage for auth tokens (in production, use Redis/DB for persistence)
-auth_store = defaultdict(dict)
+# Create a simple in-memory storage for auth sessions
+# Since we're using only one worker, this is safe
+auth_store = {}
+
+# Session functions are no longer needed since we're using simple in-memory dictionary
+# and a single worker
 
 def require_auth(f):
     """Decorator to require authentication via proxy secret"""
@@ -96,15 +110,22 @@ def create_session():
         'created': time.time(),
         'status': 'pending',
     }
+    app.logger.info(f"Created new session: {session_id}")
     return jsonify({'session_id': session_id})
 
 @app.route('/login/<session_id>')
 @require_auth
 def login_with_session(session_id):
     """Initiates Spotify login with a session ID"""
+    app.logger.info(f"Login attempt with session ID: {session_id}")
+    app.logger.info(f"Auth store has {len(auth_store)} sessions")
+    
     if session_id not in auth_store:
-        return "Invalid session ID", 400
+        error_msg = f"Invalid session ID: {session_id}"
+        app.logger.error(error_msg)
+        return error_msg, 400
         
+    app.logger.info(f"Session found, redirecting to Spotify auth")
     scopes = 'user-read-private user-read-email'
     auth_url = 'https://accounts.spotify.com/authorize'
     params = {
@@ -126,6 +147,7 @@ def login():
         'created': time.time(),
         'status': 'pending',
     }
+    app.logger.info(f"Created new session via legacy login: {session_id}")
     return redirect(f'/login/{session_id}')
 
 @app.route('/callback')
@@ -157,11 +179,11 @@ def callback():
         return f"Error getting access token: {response.text}", 500
     
     token_data = response.json()
-    
     # Store token data in session
     auth_store[session_id]['status'] = 'completed'
     auth_store[session_id]['token_data'] = token_data
     auth_store[session_id]['completed_at'] = time.time()
+    app.logger.info(f"Authentication completed for session: {session_id}")
     
     return render_template_string('''
     <html>
@@ -225,11 +247,13 @@ def cleanup_sessions():
     expired_sessions = []
     for session_id, data in auth_store.items():
         # Remove sessions older than 1 hour
-        if current_time - data['created'] > 3600:
+        if current_time - data.get('created', 0) > 3600:
             expired_sessions.append(session_id)
     
-    for session_id in expired_sessions:
-        auth_store.pop(session_id, None)
+    if expired_sessions:
+        for session_id in expired_sessions:
+            auth_store.pop(session_id, None)
+        app.logger.info(f"Cleaned up {len(expired_sessions)} expired sessions")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=PORT)

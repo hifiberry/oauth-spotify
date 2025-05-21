@@ -25,4 +25,5 @@ ENV ENABLE_DEMO="false"
 EXPOSE 4180
 
 # Run the application with Gunicorn (production WSGI server)
-CMD ["gunicorn", "--bind", "0.0.0.0:4180", "--workers", "4", "oauth-spotify:app"]
+# Use a single worker to avoid data sharing issues
+CMD ["gunicorn", "--bind", "0.0.0.0:4180", "--workers", "1", "oauth-spotify:app"]

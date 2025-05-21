@@ -2,7 +2,7 @@
 
 A simple Flask application that handles OAuth authentication with Spotify.
 
-The application uses Gunicorn, a production-ready WSGI server, instead of Flask's built-in development server.
+The application uses Gunicorn, a production-ready WSGI server, instead of Flask's built-in development server. For simplicity and session persistence, a single worker is used to avoid data sharing complexities.
 
 ## Docker Setup
 
@@ -62,6 +62,7 @@ The Spotify OAuth proxy is accessible at http://localhost/spotify/ (through Ngin
 - `PROXY_SECRET`: Secret key for clients to authenticate with the proxy (if empty, authentication is disabled)
 - `ENABLE_DEMO`: When set to "true", the server will serve the demo HTML page at the root URL (default: false). The demo page will be automatically configured with the correct proxy URL and secret.
 - `BASE_PATH`: Base path when running behind a reverse proxy (e.g., '/spotify'). This helps the application generate proper URLs when served from a subpath.
+- `REDIS_URL`: Redis connection URL for session storage (default: redis://redis:6379/0)
 
 ## Client Authentication
 

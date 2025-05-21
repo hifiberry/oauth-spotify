@@ -1,0 +1,37 @@
+version: '3'
+
+services:  
+  spotify-oauth-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: spotify-oauth-proxy
+    # No ports exposed - Nginx will access via internal Docker network    environment:
+      - SPOTIFY_CLIENT_ID=your_spotify_client_id
+      - SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+      - REDIRECT_URI=http://localhost/spotify/callback
+      - PORT=4180
+      - PROXY_SECRET=your_secure_proxy_secret
+      - ENABLE_DEMO=true
+      - BASE_PATH=/spotify
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4180/"]      
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+      
+  nginx:
+    image: nginx:alpine
+    container_name: spotify-oauth-nginx
+    ports:
+      - "80:80"
+      - "443:443"  # If you plan to use HTTPS
+    volumes:
+      - ./nginx/conf:/etc/nginx/conf.d
+      - ./nginx/ssl:/etc/nginx/ssl  # If you need SSL certificates
+    depends_on:
+      - spotify-oauth-proxy
+    restart: unless-stopped
+        

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify OAuth Client Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #1DB954;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px 0;
+        }
+        button:disabled {
+            background-color: #ccc;
+        }
+        input {
+            padding: 8px;
+            width: 300px;
+            margin-bottom: 10px;
+        }
+        .hidden {
+            display: none;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .config-panel {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #1DB954;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Spotify OAuth Client Demo</h1>    <div id="configInfo">
+        <h3>Configuration</h3>
+        <div class="config-panel">
+            <p><strong>Proxy URL:</strong> <span id="displayProxyUrl"></span></p>
+            <p><strong>Proxy Secret:</strong> <span id="displayProxySecret">(automatically configured)</span></p>
+            <p><small>These settings are automatically filled by the server.</small></p>
+        </div>
+    </div>
+    <div id="authSection">
+        <h2>Step 1: Begin Authentication</h2>
+        <button id="startAuthBtn">Start Authentication</button>
+    </div>
+    
+    <div id="tokenSection" class="hidden">
+        <h2>Step 2: Authentication Progress</h2>
+        <p>Authenticating with Spotify...</p>
+        <p>Session ID: <span id="sessionId"></span></p>
+        <button id="checkStatusBtn">Check Status</button>
+        <div id="status"></div>
+    </div>
+    
+    <div id="refreshSection" class="hidden">
+        <h2>Step 3: Use and Refresh Tokens</h2>
+        <button id="refreshTokenBtn">Refresh Token</button>
+    </div>
+    
+    <div>
+        <h2>Response Data</h2>
+        <pre id="responseData">No data yet</pre>
+    </div>    <script>        // Configuration block - all settings in one place
+        const CONFIG = {
+            // Configuration settings - automatically filled by the server
+            settings: {
+                proxyUrl: '{{PROXY_URL}}',   // URL of the Spotify OAuth proxy
+                proxySecret: '{{PROXY_SECRET}}'      // Secret for proxy authentication
+            },
+            
+            // Current session data
+            session: {
+                id: null,
+                refreshToken: null
+            },
+            
+            // API endpoints (relative to proxyUrl)
+            endpoints: {
+                createSession: '/create_session',
+                login: '/login/',
+                poll: '/poll/',
+                refresh: '/refresh'
+            },
+            
+            // UI elements
+            ui: {
+                sessionIdSpan: document.getElementById('sessionId'),
+                responseDataPre: document.getElementById('responseData'),
+                statusDiv: document.getElementById('status'),
+                tokenSection: document.getElementById('tokenSection'),
+                refreshSection: document.getElementById('refreshSection'),
+                displayProxyUrl: document.getElementById('displayProxyUrl')
+            }
+        };
+          // Display configuration values
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('displayProxyUrl').textContent = CONFIG.settings.proxyUrl;
+            if (CONFIG.settings.proxySecret) {
+                document.getElementById('displayProxySecret').textContent = "(secret configured)";
+            } else {
+                document.getElementById('displayProxySecret').textContent = "(no secret required)";
+            }
+        });
+          document.getElementById('startAuthBtn').addEventListener('click', async () => {
+            try {
+                // First, create a session
+                const proxyUrl = CONFIG.settings.proxyUrl;
+                const proxySecret = CONFIG.settings.proxySecret;
+                
+                const headers = {};
+                if (proxySecret) {
+                    headers['X-Proxy-Secret'] = proxySecret;
+                }
+                
+                // Create session
+                const createSessionResponse = await fetch(`${proxyUrl}/create_session`, {
+                    headers
+                });
+                
+                if (!createSessionResponse.ok) {
+                    throw new Error('Failed to create session: ' + await createSessionResponse.text());
+                }
+                  const sessionData = await createSessionResponse.json();
+                CONFIG.session.id = sessionData.session_id;
+                
+                CONFIG.ui.sessionIdSpan.textContent = CONFIG.session.id;
+                CONFIG.ui.tokenSection.classList.remove('hidden');
+                
+                // Open Spotify login in a new window
+                const loginUrl = proxySecret ? 
+                    `${proxyUrl}${CONFIG.endpoints.login}${CONFIG.session.id}?proxy_secret=${encodeURIComponent(proxySecret)}` : 
+                    `${proxyUrl}${CONFIG.endpoints.login}${CONFIG.session.id}`;
+                    
+                const loginWindow = window.open(loginUrl, 'SpotifyLogin', 'width=800,height=600');
+                
+                // Start polling for status
+                pollForStatus();
+                
+                displayResponse(sessionData);
+            } catch (error) {
+                displayError(error.message);
+            }
+        });
+          document.getElementById('checkStatusBtn').addEventListener('click', () => {
+            if (CONFIG.session.id) {
+                pollForStatus();
+            }
+        });
+        
+        document.getElementById('refreshTokenBtn').addEventListener('click', async () => {
+            if (!CONFIG.session.refreshToken) {
+                displayError('No refresh token available');
+                return;
+            }
+              try {
+                const proxyUrl = CONFIG.settings.proxyUrl;
+                const proxySecret = CONFIG.settings.proxySecret;
+                
+                const headers = {
+                    'Content-Type': 'application/json'
+                };
+                
+                if (proxySecret) {
+                    headers['X-Proxy-Secret'] = proxySecret;
+                }
+                  const refreshResponse = await fetch(`${proxyUrl}${CONFIG.endpoints.refresh}`, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({ refresh_token: CONFIG.session.refreshToken })
+                });
+                
+                if (!refreshResponse.ok) {
+                    throw new Error('Failed to refresh token: ' + await refreshResponse.text());
+                }
+                
+                const tokenData = await refreshResponse.json();
+                displayResponse(tokenData);
+                displayStatus('Token refreshed successfully!', 'success');
+            } catch (error) {
+                displayError(error.message);
+            }
+        });        async function pollForStatus() {
+            if (!CONFIG.session.id) return;
+            
+            try {
+                const proxyUrl = CONFIG.settings.proxyUrl;
+                const proxySecret = CONFIG.settings.proxySecret;
+                
+                const headers = {};
+                if (proxySecret) {
+                    headers['X-Proxy-Secret'] = proxySecret;
+                }
+                
+                const statusResponse = await fetch(`${proxyUrl}${CONFIG.endpoints.poll}${CONFIG.session.id}`, {
+                    headers
+                });
+                
+                if (!statusResponse.ok) {
+                    throw new Error('Failed to check status: ' + await statusResponse.text());
+                }
+                
+                const statusData = await statusResponse.json();
+                displayResponse(statusData);
+                  if (statusData.status === 'completed' && statusData.token_data) {
+                    CONFIG.ui.refreshSection.classList.remove('hidden');
+                    CONFIG.session.refreshToken = statusData.token_data.refresh_token;
+                    displayStatus('Authentication completed successfully!', 'success');
+                } else if (statusData.status === 'error') {
+                    displayStatus(`Authentication error: ${statusData.error}`, 'error');
+                } else {
+                    displayStatus('Waiting for authentication...', '');
+                }
+            } catch (error) {
+                displayError(error.message);
+            }
+        }
+          function displayResponse(data) {
+            CONFIG.ui.responseDataPre.textContent = JSON.stringify(data, null, 2);
+        }
+        
+        function displayStatus(message, type) {
+            const statusElement = CONFIG.ui.statusDiv;
+            statusElement.textContent = message;
+            statusElement.className = type;
+        }
+        
+        function displayError(message) {
+            displayStatus(message, 'error');
+            console.error(message);
+        }
+    </script>
+</body>
+</html>

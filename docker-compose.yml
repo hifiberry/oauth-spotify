@@ -15,7 +15,8 @@ services:
       - PROXY_SECRET=your_secure_proxy_secret
       - ENABLE_DEMO=true
       - BASE_PATH=/spotify
-    restart: unless-stopped    healthcheck:
+    restart: unless-stopped
+    healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:4180/ || exit 1"]      
       interval: 30s
       timeout: 10s

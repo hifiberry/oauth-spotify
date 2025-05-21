@@ -68,9 +68,20 @@
             <p><strong>Proxy Secret:</strong> <span id="displayProxySecret">(automatically configured)</span></p>
             <p><small>These settings are automatically filled by the server.</small></p>
         </div>
-    </div>
+    </div>    
     <div id="authSection">
         <h2>Step 1: Begin Authentication</h2>
+        <div class="config-panel">
+            <p><strong>Scopes:</strong> Select the permissions you want to request</p>
+            <div id="scopeSelections">
+                <label><input type="checkbox" class="scope-checkbox" value="user-read-private" checked> user-read-private</label><br>
+                <label><input type="checkbox" class="scope-checkbox" value="user-read-email" checked> user-read-email</label><br>
+                <label><input type="checkbox" class="scope-checkbox" value="user-top-read"> user-top-read</label><br>
+                <label><input type="checkbox" class="scope-checkbox" value="playlist-read-private"> playlist-read-private</label><br>
+                <label><input type="checkbox" class="scope-checkbox" value="playlist-modify-private"> playlist-modify-private</label><br>
+                <label><input type="checkbox" class="scope-checkbox" value="streaming"> streaming</label><br>
+            </div>
+        </div>
         <button id="startAuthBtn">Start Authentication</button>
     </div>
     
@@ -78,6 +89,7 @@
         <h2>Step 2: Authentication Progress</h2>
         <p>Authenticating with Spotify...</p>
         <p>Session ID: <span id="sessionId"></span></p>
+        <p>Requested scopes: <span id="requestedScopes"></span></p>
         <button id="checkStatusBtn">Check Status</button>
         <div id="status"></div>
     </div>
@@ -130,10 +142,15 @@
             } else {
                 document.getElementById('displayProxySecret').textContent = "(no secret required)";
             }
-        });
-          document.getElementById('startAuthBtn').addEventListener('click', async () => {
+        });          document.getElementById('startAuthBtn').addEventListener('click', async () => {
             try {
-                // First, create a session
+                // First, get selected scopes
+                const scopeCheckboxes = document.querySelectorAll('.scope-checkbox:checked');
+                const selectedScopes = Array.from(scopeCheckboxes).map(cb => cb.value);
+                const scopeParam = selectedScopes.join(' ');
+                CONFIG.session.scopes = scopeParam;
+                
+                // Get URL and auth parameters
                 const proxyUrl = CONFIG.settings.proxyUrl;
                 const proxySecret = CONFIG.settings.proxySecret;
                 
@@ -142,8 +159,9 @@
                     headers['X-Proxy-Secret'] = proxySecret;
                 }
                 
-                // Create session
-                const createSessionResponse = await fetch(`${proxyUrl}/create_session`, {
+                // Create session with scope
+                const createSessionUrl = `${proxyUrl}/create_session?scope=${encodeURIComponent(scopeParam)}`;
+                const createSessionResponse = await fetch(createSessionUrl, {
                     headers
                 });
                 
@@ -154,6 +172,7 @@
                 CONFIG.session.id = sessionData.session_id;
                 
                 CONFIG.ui.sessionIdSpan.textContent = CONFIG.session.id;
+                document.getElementById('requestedScopes').textContent = scopeParam;
                 CONFIG.ui.tokenSection.classList.remove('hidden');
                   // Open Spotify login in a new window
                 const loginUrl = proxySecret ? 

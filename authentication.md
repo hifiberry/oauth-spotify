@@ -36,11 +36,20 @@ Creates a new OAuth session that can be used for the Spotify authentication flow
 
 **Endpoint:** `GET /create_session`
 **Authentication:** Required
+**Parameters:**
+  - `scope` (optional): Space-separated list of Spotify permissions scopes. Default is `user-read-private user-read-email`.
 **Response Format:** JSON
 
-**Example Request:**
+**Example Request (with default scope):**
 ```http
 GET /create_session HTTP/1.1
+Host: example.com
+X-Proxy-Secret: your_proxy_secret
+```
+
+**Example Request (with custom scope):**
+```http
+GET /create_session?scope=user-read-private%20user-read-email%20user-top-read HTTP/1.1
 Host: example.com
 X-Proxy-Secret: your_proxy_secret
 ```
@@ -58,16 +67,25 @@ Redirects the user to Spotify's authorization page to begin the OAuth flow.
 
 **Endpoint:** `GET /login/<session_id>`
 **Authentication:** Required
+**Parameters:**
+  - `scope` (optional): Space-separated list of Spotify permissions scopes. If not provided, uses the scope defined during session creation or defaults to `user-read-private user-read-email`.
 **Response:** Redirect to Spotify
 
-**Example Request:**
+**Example Request (with default scope):**
 ```http
 GET /login/550e8400-e29b-41d4-a716-446655440000 HTTP/1.1
 Host: example.com
 X-Proxy-Secret: your_proxy_secret
 ```
 
-**Result:** User is redirected to Spotify's login page
+**Example Request (with custom scope):**
+```http
+GET /login/550e8400-e29b-41d4-a716-446655440000?scope=user-read-private%20playlist-read-private HTTP/1.1
+Host: example.com
+X-Proxy-Secret: your_proxy_secret
+```
+
+**Result:** User is redirected to Spotify's login page with the specified permissions scope
 
 ### Legacy Login (Without Session ID)
 
@@ -211,8 +229,13 @@ A sample HTML client is included in the repository (`sample-client.html`) that d
 
 ```javascript
 // Create a session
-async function createSession() {
-  const response = await fetch('https://example.com/create_session', {
+async function createSession(scope = null) {
+  // Add scope parameter if provided
+  const url = scope 
+    ? `https://example.com/create_session?scope=${encodeURIComponent(scope)}`
+    : 'https://example.com/create_session';
+    
+  const response = await fetch(url, {
     headers: {
       'X-Proxy-Secret': 'your_proxy_secret'
     }
@@ -245,16 +268,16 @@ async function refreshToken(refreshToken) {
 }
 
 // Example implementation with active polling every 2 seconds
-function startAuthFlow() {
+function startAuthFlow(scope = 'user-read-private user-read-email') {
   let pollInterval;
   let authWindow;
   
-  // Create a session and open the auth window
-  createSession().then(sessionId => {
+  // Create a session with the provided scope
+  createSession(scope).then(sessionId => {
     // Store the session ID
     const sessionId = data.session_id;
     
-    // Open the authentication popup
+    // Open the authentication popup (scope is already associated with the session)
     const loginUrl = `https://example.com/login/${sessionId}?proxy_secret=your_proxy_secret`;
     authWindow = window.open(loginUrl, 'SpotifyLogin', 'width=800,height=600');
     

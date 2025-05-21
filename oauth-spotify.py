@@ -106,9 +106,15 @@ def index():
 def create_session():
     """Creates a new auth session and returns session ID"""
     session_id = str(uuid.uuid4())
+    
+    # Allow storing the initial scope with the session
+    default_scopes = 'user-read-private user-read-email'
+    scope = request.args.get('scope', default_scopes)
+    
     auth_store[session_id] = {
         'created': time.time(),
         'status': 'pending',
+        'scope': scope
     }
     app.logger.info(f"Created new session: {session_id}")
     return jsonify({'session_id': session_id})
@@ -126,7 +132,14 @@ def login_with_session(session_id):
         return error_msg, 400
         
     app.logger.info(f"Session found, redirecting to Spotify auth")
-    scopes = 'user-read-private user-read-email'
+    
+    # Allow client to specify the scope
+    default_scopes = 'user-read-private user-read-email'
+    scopes = request.args.get('scope', default_scopes)
+    
+    # Store the scope in the session for reference
+    auth_store[session_id]['scope'] = scopes
+    
     auth_url = 'https://accounts.spotify.com/authorize'
     params = {
         'response_type': 'code',
@@ -148,7 +161,13 @@ def login():
         'status': 'pending',
     }
     app.logger.info(f"Created new session via legacy login: {session_id}")
-    return redirect(f'/login/{session_id}')
+    
+    # Preserve scope if provided in query params
+    scope_param = ''
+    if request.args.get('scope'):
+        scope_param = f"?scope={request.args.get('scope')}"
+    
+    return redirect(f'/login/{session_id}{scope_param}')
 
 @app.route('/callback')
 def callback():

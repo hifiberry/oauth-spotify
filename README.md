@@ -2,6 +2,8 @@
 
 A simple Flask application that handles OAuth authentication with Spotify.
 
+The application uses Gunicorn, a production-ready WSGI server, instead of Flask's built-in development server.
+
 ## Docker Setup
 
 ### Build and Run with Docker

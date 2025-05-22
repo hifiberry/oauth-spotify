@@ -52,6 +52,12 @@ def require_auth(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def get_client_credentials():
+    """Get client_id and client_secret from headers if present, otherwise from environment."""
+    client_id = request.headers.get('X-Spotify-Client-Id', CLIENT_ID)
+    client_secret = request.headers.get('X-Spotify-Client-Secret', CLIENT_SECRET)
+    return client_id, client_secret
+
 @app.route('/')
 def index():
     if ENABLE_DEMO:
@@ -141,9 +147,11 @@ def login_with_session(session_id):
     auth_store[session_id]['scope'] = scopes
     
     auth_url = 'https://accounts.spotify.com/authorize'
+    # Use dynamic client_id
+    client_id, _ = get_client_credentials()
     params = {
         'response_type': 'code',
-        'client_id': CLIENT_ID,
+        'client_id': client_id,
         'scope': scopes,
         'redirect_uri': REDIRECT_URI,
         'state': session_id  # Pass session ID as state parameter
@@ -182,12 +190,14 @@ def callback():
     
     # Exchange code for access token
     token_url = 'https://accounts.spotify.com/api/token'
+    # Use dynamic client_id and client_secret
+    client_id, client_secret = get_client_credentials()
     payload = {
         'grant_type': 'authorization_code',
         'code': code,
         'redirect_uri': REDIRECT_URI,
-        'client_id': CLIENT_ID,
-        'client_secret': CLIENT_SECRET
+        'client_id': client_id,
+        'client_secret': client_secret
     }
     
     response = requests.post(token_url, data=payload)
@@ -245,11 +255,13 @@ def refresh_token():
         return jsonify({"error": "Refresh token is required"}), 400
     
     token_url = 'https://accounts.spotify.com/api/token'
+    # Use dynamic client_id and client_secret
+    client_id, client_secret = get_client_credentials()
     payload = {
         'grant_type': 'refresh_token',
         'refresh_token': refresh_token,
-        'client_id': CLIENT_ID,
-        'client_secret': CLIENT_SECRET
+        'client_id': client_id,
+        'client_secret': client_secret
     }
     
     response = requests.post(token_url, data=payload)

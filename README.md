@@ -64,12 +64,31 @@ The Spotify OAuth proxy is accessible at http://localhost/spotify/ (through Ngin
 - `BASE_PATH`: Base path when running behind a reverse proxy (e.g., '/spotify'). This helps the application generate proper URLs when served from a subpath.
 - `REDIS_URL`: Redis connection URL for session storage (default: redis://redis:6379/0)
 
+## Overriding Spotify Credentials via Headers
+
+You can override the Spotify `client_id` and `client_secret` for any request by sending the following HTTP headers:
+
+- `X-Spotify-Client-Id`: The Spotify client ID to use for this request
+- `X-Spotify-Client-Secret`: The Spotify client secret to use for this request
+
+If these headers are not present, the proxy will use the values from the environment variables as usual.
+
+This allows you to use the proxy with multiple Spotify applications or rotate credentials dynamically.
+
 ## Client Authentication
 
 Clients using this proxy must include the proxy secret in their requests to protected endpoints. This can be done in one of two ways:
 
 1. Using an HTTP header: `X-Proxy-Secret: your_proxy_secret`
 2. Using a query parameter: `?proxy_secret=your_proxy_secret`
+
+### Overriding Spotify Credentials
+
+For any request, you may also include:
+- `X-Spotify-Client-Id`: to override the client ID
+- `X-Spotify-Client-Secret`: to override the client secret
+
+If not provided, the proxy will use the environment variable values.
 
 ### Protected Endpoints
 

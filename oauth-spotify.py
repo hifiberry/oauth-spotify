@@ -142,13 +142,14 @@ def login_with_session(session_id):
     # Allow client to specify the scope
     default_scopes = 'user-read-private user-read-email'
     scopes = request.args.get('scope', default_scopes)
-    
+    app.logger.info(f"Requested scopes for session {session_id}: {scopes}")
     # Store the scope in the session for reference
     auth_store[session_id]['scope'] = scopes
     
     auth_url = 'https://accounts.spotify.com/authorize'
     # Use dynamic client_id
     client_id, client_secret = get_client_credentials()
+    app.logger.info(f"Storing client_id for session {session_id}: {client_id}")
     # Store the client credentials in the session
     auth_store[session_id]['client_id'] = client_id
     auth_store[session_id]['client_secret'] = client_secret
@@ -177,6 +178,8 @@ def login():
     scope_param = ''
     if request.args.get('scope'):
         scope_param = f"?scope={request.args.get('scope')}"
+
+        
     
     return redirect(f'/login/{session_id}{scope_param}')
 
@@ -197,6 +200,7 @@ def callback():
     session_data = auth_store[session_id]
     client_id = session_data.get('client_id', CLIENT_ID)
     client_secret = session_data.get('client_secret', CLIENT_SECRET)
+    app.logger.info(f"Using client_id for callback session {session_id}: {client_id}")
     payload = {
         'grant_type': 'authorization_code',
         'code': code,
@@ -262,8 +266,10 @@ def refresh_token():
         session_data = auth_store[session_id]
         client_id = session_data.get('client_id', CLIENT_ID)
         client_secret = session_data.get('client_secret', CLIENT_SECRET)
+        app.logger.info(f"Using stored client_id for refresh session {session_id}: {client_id}")
     else:
         client_id, client_secret = get_client_credentials()
+        app.logger.info(f"Using fallback client_id for refresh: {client_id} (no session_id or not found)")
     token_url = 'https://accounts.spotify.com/api/token'
     payload = {
         'grant_type': 'refresh_token',

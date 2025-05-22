@@ -122,7 +122,7 @@ def create_session():
         'status': 'pending',
         'scope': scope
     }
-    app.logger.info(f"Created new session: {session_id}")
+    app.logger.info(f"Created new session: {session_id} with scope: {scope}")
     return jsonify({'session_id': session_id})
 
 @app.route('/login/<session_id>')
@@ -179,8 +179,6 @@ def login():
     if request.args.get('scope'):
         scope_param = f"?scope={request.args.get('scope')}"
 
-        
-    
     return redirect(f'/login/{session_id}{scope_param}')
 
 @app.route('/callback')

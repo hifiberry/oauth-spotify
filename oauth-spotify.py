@@ -141,8 +141,16 @@ def login_with_session(session_id):
     
     # Allow client to specify the scope
     default_scopes = 'user-read-private user-read-email'
-    scopes = request.args.get('scope', default_scopes)
-    app.logger.info(f"Requested scopes for session {session_id}: {scopes}")
+    # Check for scope in request, then in auth_store, then use default
+    if request.args.get('scope'):
+        scopes = request.args.get('scope')
+        app.logger.info(f"Requested scopes for session {session_id} (from request): {scopes}")
+    elif 'scope' in auth_store[session_id]:
+        scopes = auth_store[session_id]['scope']
+        app.logger.info(f"Requested scopes for session {session_id} (from auth_store): {scopes}")
+    else:
+        scopes = default_scopes
+        app.logger.info(f"Requested scopes for session {session_id} (default): {scopes}")
     # Store the scope in the session for reference
     auth_store[session_id]['scope'] = scopes
     

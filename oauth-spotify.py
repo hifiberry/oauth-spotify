@@ -148,7 +148,10 @@ def login_with_session(session_id):
     
     auth_url = 'https://accounts.spotify.com/authorize'
     # Use dynamic client_id
-    client_id, _ = get_client_credentials()
+    client_id, client_secret = get_client_credentials()
+    # Store the client credentials in the session
+    auth_store[session_id]['client_id'] = client_id
+    auth_store[session_id]['client_secret'] = client_secret
     params = {
         'response_type': 'code',
         'client_id': client_id,
@@ -190,8 +193,10 @@ def callback():
     
     # Exchange code for access token
     token_url = 'https://accounts.spotify.com/api/token'
-    # Use dynamic client_id and client_secret
-    client_id, client_secret = get_client_credentials()
+    # Use client_id and client_secret from session if present
+    session_data = auth_store[session_id]
+    client_id = session_data.get('client_id', CLIENT_ID)
+    client_secret = session_data.get('client_secret', CLIENT_SECRET)
     payload = {
         'grant_type': 'authorization_code',
         'code': code,
@@ -199,8 +204,8 @@ def callback():
         'client_id': client_id,
         'client_secret': client_secret
     }
-    
-    response = requests.post(token_url, data=payload)
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    response = requests.post(token_url, data=payload, headers=headers)
     
     if response.status_code != 200:
         auth_store[session_id]['status'] = 'error'
@@ -250,25 +255,26 @@ def poll_session(session_id):
 @require_auth
 def refresh_token():
     refresh_token = request.json.get('refresh_token')
-    
     if not refresh_token:
         return jsonify({"error": "Refresh token is required"}), 400
-    
+    session_id = request.json.get('session_id')
+    if session_id and session_id in auth_store:
+        session_data = auth_store[session_id]
+        client_id = session_data.get('client_id', CLIENT_ID)
+        client_secret = session_data.get('client_secret', CLIENT_SECRET)
+    else:
+        client_id, client_secret = get_client_credentials()
     token_url = 'https://accounts.spotify.com/api/token'
-    # Use dynamic client_id and client_secret
-    client_id, client_secret = get_client_credentials()
     payload = {
         'grant_type': 'refresh_token',
         'refresh_token': refresh_token,
         'client_id': client_id,
         'client_secret': client_secret
     }
-    
-    response = requests.post(token_url, data=payload)
-    
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    response = requests.post(token_url, data=payload, headers=headers)
     if response.status_code != 200:
         return jsonify({"error": f"Error refreshing token: {response.text}"}), 500
-    
     return jsonify(response.json())
 
 # Clean up expired sessions periodically
